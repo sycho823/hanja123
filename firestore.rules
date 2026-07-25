@@ -1,0 +1,41 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function teacherDoc() {
+      return get(/databases/$(database)/documents/teachers/$(request.auth.uid));
+    }
+    function ownsClass(classId) {
+      return signedIn() && teacherDoc().data.classIds.hasAny([classId]);
+    }
+    function isSelf(studentId) {
+      return signedIn() && request.auth.uid == studentId;
+    }
+
+    match /teachers/{teacherId} {
+      allow read, write: if signedIn() && request.auth.uid == teacherId;
+    }
+    match /classes/{classId} {
+      allow read, write: if ownsClass(classId);
+    }
+    match /students/{studentId} {
+      allow read: if isSelf(studentId) || ownsClass(resource.data.classId);
+      allow update: if isSelf(studentId) || ownsClass(resource.data.classId);
+      allow create: if isSelf(studentId);
+      allow delete: if ownsClass(resource.data.classId);
+    }
+    match /studentProgress/{studentId} {
+      allow read, write: if isSelf(studentId) ||
+        (resource != null && ownsClass(resource.data.classId));
+    }
+    match /{collectionName}/{recordId} {
+      allow read, write: if collectionName in [
+        'hanjaLearningRecords', 'quizAttempts', 'writingAttempts'
+      ] && (
+        (request.resource != null && isSelf(request.resource.data.studentId)) ||
+        (resource != null && isSelf(resource.data.studentId)) ||
+        (resource != null && ownsClass(resource.data.classId))
+      );
+    }
+  }
+}
