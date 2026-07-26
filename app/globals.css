@@ -115,9 +115,13 @@ input, select { width: 100%; height: 54px; margin-top: 7px; padding: 0 16px; bor
 .round-icon { width: 68px; height: 68px; margin: 0 auto; border-radius: 50%; display: grid; place-items: center; background: #dbe8de; color: var(--jade); border: 1px solid #91ad9f; }
 .round-icon svg { width: 35px; height: 35px; }
 .narrow-panel .outline-button { width: 100%; margin-top: 14px; }
+.teacher-demo-button { width: 100%; margin-top: 8px; }
 .demo-copy { font-size: 12px; color: var(--muted); }
 .generated-code { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 12px; padding: 14px; border-radius: 10px; background: #e1eadc; text-align: left; }
 .generated-code span { font-size: 12px; }.generated-code b { letter-spacing: .15em; font-size: 20px; }.generated-code button { border: 0; background: transparent; }
+.class-code-input { text-transform: uppercase; letter-spacing: .16em; font-size: 20px; font-weight: 800; text-align: center; }
+.code-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.code-actions .outline-button { margin-top: 0; padding: 0 10px; }
 
 .app-shell { min-height: 100vh; background: #dfe9db; }
 .student-header { height: 88px; padding: 11px 28px; background: rgba(248,242,221,.97); border-bottom: 2px solid #a98c59; display: grid; grid-template-columns: 1fr minmax(280px, 450px) 1fr; align-items: center; gap: 24px; position: sticky; top: 0; z-index: 50; box-shadow: 0 5px 18px rgba(37,58,52,.12); }
@@ -225,9 +229,15 @@ input, select { width: 100%; height: 54px; margin-top: 7px; padding: 0 16px; bor
 
 .teacher-dashboard { max-width: 1450px; padding-top: 28px; background: #e6ece2; }.teacher-head { display: flex; justify-content: space-between; align-items: center; padding-bottom: 18px; border-bottom: 1px solid #a6b5ab; }.teacher-head > div { display: flex; align-items: center; gap: 14px; }.teacher-head .back-button { position: static; }.teacher-brand { font-family: "Song Myung"; font-size: 21px; }.teacher-brand svg { color: var(--jade); }
 .teacher-title { display: flex; align-items: center; justify-content: space-between; margin: 28px 0 22px; }.teacher-title > div { display: flex; flex-direction: column; }.teacher-title > div:first-child:not(.avatar) { display: block; }.teacher-title .avatar { margin-right: 14px; }.teacher-title h1 { font-family: "Song Myung"; font-size: 34px; margin: 2px 0; font-weight: 400; }.teacher-title span button { border: 0; background: transparent; vertical-align: middle; }.teacher-title span svg { width: 15px; }
+.teacher-title-actions { flex-direction: row !important; gap: 10px; }
 .teacher-stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 13px; }.teacher-stats > div { padding: 18px 20px; border: 1px solid #acb4a8; border-radius: 12px; background: #f7f2e4; }.teacher-stats span { color: var(--muted); font-size: 12px; }.teacher-stats b { display: block; margin-top: 4px; font-size: 24px; font-family: "Gowun Batang"; }.teacher-stats .warning { border-color: #d79e6a; background: #f7e8d3; }.teacher-stats .warning b { color: #b35e3d; }
 .dashboard-panel { margin-top: 20px; padding: 23px 25px; border: 1px solid #a8b0a4; border-radius: 14px; background: #f8f4e8; box-shadow: 0 7px 24px rgba(45,64,55,.08); }.dashboard-panel h2 { font-family: "Song Myung"; font-size: 22px; margin: 0 0 15px; }.panel-heading { display: flex; justify-content: space-between; align-items: center; }.panel-heading p { margin: 3px 0 15px; color: var(--muted); font-size: 12px; }
 .student-table { overflow-x: auto; }.table-row { width: 100%; min-width: 950px; display: grid; grid-template-columns: 1.4fr .6fr 1.1fr .6fr .6fr .7fr 1fr; align-items: center; min-height: 60px; padding: 0 12px; border: 0; border-bottom: 1px solid #d7d9d0; background: transparent; text-align: left; }.table-row:not(.head):hover { background: #e5eee6; }.table-row.head { color: var(--muted); font-size: 11px; font-weight: 800; background: #e7eadf; border-radius: 8px; min-height: 42px; }
+.empty-students { min-height: 260px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; border: 1px dashed #aab5aa; border-radius: 12px; background: #edf1e9; }
+.empty-students > svg { width: 46px; height: 46px; color: var(--jade); opacity: .8; }
+.empty-students h3 { font-family: "Song Myung"; font-size: 22px; margin: 12px 0 3px; }
+.empty-students p { color: var(--muted); margin: 0; }
+.empty-students b { color: var(--jade); letter-spacing: .08em; }
 .table-row > span:first-child b { display: inline-grid; place-items: center; width: 26px; height: 26px; margin-right: 8px; border-radius: 50%; background: #d8e4da; }.status { display: inline-flex; justify-self: start; padding: 5px 9px; border-radius: 99px; font-size: 11px; }.status-순조로움 { color: #34764c; background: #d9ecdd; }.status-복습-필요, .status-쓰기-연습-필요 { color: #a55e32; background: #f2dfc4; }.status-장기-미접속 { color: #66716d; background: #e0e4e1; }
 .teacher-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }.trouble-hanja { display: flex; gap: 12px; }.trouble-hanja span { width: 100px; height: 100px; border: 1px solid #a9a087; border-radius: 10px; background: white; display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: "Gowun Batang"; font-size: 42px; }.trouble-hanja small { font-family: "Gowun Dodum"; font-size: 10px; color: var(--coral); }.dashboard-panel ul { list-style: none; padding: 0; }.dashboard-panel li { display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #d9d7c9; }
 .chapter-progress { display: grid; grid-template-columns: 150px 1fr 50px; gap: 13px; align-items: center; margin: 12px 0; }.chapter-progress > div { height: 11px; border-radius: 99px; background: #d3dbd4; overflow: hidden; }.chapter-progress i { display: block; height: 100%; background: var(--jade); border-radius: inherit; }
@@ -248,6 +258,7 @@ input, select { width: 100%; height: 54px; margin-top: 7px; padding: 0 16px; bor
   .writing-layout { display: flex; flex-direction: column; }.writing-info h2 { font-size: 75px; }.canvas-wrap { width: min(94vw, 510px); }.guide-char { font-size: 280px; }.writing-tools { flex-direction: column; width: min(94vw, 510px); }.quiz-scroll { padding: 30px 18px; }.choice-grid { grid-template-columns: 1fr 1fr; }
   .complete-card { padding: 38px 20px; }.complete-card h2 { font-size: 100px; }.reward-row { gap: 5px; }.complete-actions { flex-direction: column; }
   .record-stats, .teacher-stats { grid-template-columns: 1fr 1fr; }.teacher-dashboard { padding: 18px 14px; }.teacher-title { align-items: flex-start; gap: 12px; }.teacher-title .ink-button { padding: 0 12px; }.table-panel { padding: 14px; }
+  .teacher-title-actions { flex-direction: column !important; }
 }
 
 @media (prefers-reduced-motion: reduce) {

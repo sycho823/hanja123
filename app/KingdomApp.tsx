@@ -14,6 +14,9 @@ type Screen = "title" | "studentGate" | "studentAuth" | "teacherAuth" | "teacher
   "map" | "grades" | "learn" | "write" | "quiz" | "complete" | "book" | "review" |
   "teacher" | "studentDetail" | "records";
 
+type TeacherClass = { name: string; grade: string; code: string };
+type StudentRow = { no: number; id: string; learned: number; chapter: string; quiz: number; writing: number; last: string; status: string };
+
 const demoStudents = [
   { no: 3, id: "구름붓", learned: 17, chapter: "자연의 숲", quiz: 88, writing: 82, last: "오늘", status: "순조로움" },
   { no: 7, id: "푸른먹", learned: 14, chapter: "자연의 숲", quiz: 69, writing: 76, last: "오늘", status: "복습 필요" },
@@ -44,15 +47,40 @@ export default function KingdomApp() {
   const [classCode, setClassCode] = useState("");
   const [authMode, setAuthMode] = useState<"login" | "join">("login");
   const [bookTab, setBookTab] = useState(0);
+  const [teacherClass, setTeacherClass] = useState<TeacherClass | null>(null);
+  const [teacherStudents, setTeacherStudents] = useState<StudentRow[]>([]);
+  const [teacherDemo, setTeacherDemo] = useState(false);
+  const [selectedStudent, setSelectedStudent] = useState<StudentRow | null>(null);
   const go = (next: Screen) => { setPrevious(screen); setScreen(next); window.scrollTo(0, 0); };
   const back = () => setScreen(previous);
 
   if (screen === "title") return <TitleScreen onStudent={() => go("studentGate")} onTeacher={() => go("teacherAuth")} />;
   if (screen === "studentGate") return <GateScreen code={classCode} setCode={setClassCode} onBack={back} onNext={() => go("studentAuth")} />;
   if (screen === "studentAuth") return <StudentAuth mode={authMode} setMode={setAuthMode} onBack={back} onEnter={() => go("map")} />;
-  if (screen === "teacherAuth") return <TeacherAuth onBack={back} onEnter={() => go("teacher")} onCreate={() => go("teacherCreate")} />;
-  if (screen === "teacherCreate") return <TeacherCreate onBack={back} onDone={() => go("teacher")} />;
-  if (screen === "teacher" || screen === "studentDetail") return <TeacherDashboard detail={screen === "studentDetail"} onBack={back} onDetail={() => go("studentDetail")} onHome={() => setScreen("title")} />;
+  if (screen === "teacherAuth") return <TeacherAuth onBack={back} onEnter={() => teacherClass ? go("teacher") : go("teacherCreate")} onCreate={() => go("teacherCreate")} onDemo={() => {
+    setTeacherDemo(true);
+    setTeacherClass({ name: "햇살초등학교 3학년 2반", grade: "3학년", code: "DEMO88" });
+    setTeacherStudents(demoStudents);
+    go("teacher");
+  }} />;
+  if (screen === "teacherCreate") return <TeacherCreate onBack={back} onDone={(newClass) => {
+    setTeacherDemo(false);
+    setTeacherClass(newClass);
+    setTeacherStudents([]);
+    setSelectedStudent(null);
+    go("teacher");
+  }} />;
+  if (screen === "teacher" || screen === "studentDetail") return <TeacherDashboard
+    detail={screen === "studentDetail"}
+    classInfo={teacherClass}
+    students={teacherStudents}
+    demo={teacherDemo}
+    selectedStudent={selectedStudent}
+    onBack={back}
+    onDetail={(student) => { setSelectedStudent(student); go("studentDetail"); }}
+    onNewClass={() => go("teacherCreate")}
+    onHome={() => setScreen("title")}
+  />;
 
   const studentShell = (content: React.ReactNode) => <div className="app-shell">
     <StudentHeader onSettings={() => setModal("settings")} onLogout={() => setScreen("title")} />
@@ -126,22 +154,40 @@ function StudentAuth({ mode, setMode, onBack, onEnter }: { mode: "login" | "join
   </section></main>;
 }
 
-function TeacherAuth({ onBack, onEnter, onCreate }: { onBack: () => void; onEnter: () => void; onCreate: () => void }) {
+function TeacherAuth({ onBack, onEnter, onCreate, onDemo }: { onBack: () => void; onEnter: () => void; onCreate: () => void; onDemo: () => void }) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   return <main className="form-screen teacher-form"><BackButton onClick={onBack} /><section className="paper-panel narrow-panel">
     <div className="round-icon"><GraduationCap /></div><p className="eyebrow">왕국 관청</p><h2>선생님 로그인</h2>
-    <label>이메일<input type="email" defaultValue="teacher@demo.kr" /></label><label>비밀번호<input type="password" defaultValue="demo1234" /></label>
-    <button className="ink-button" onClick={onEnter}>학급 살펴보기 <ChevronRight /></button>
+    <label>이메일<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="선생님 이메일" /></label>
+    <label>비밀번호<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="비밀번호" /></label>
+    <button className="ink-button" disabled={!email || !password} onClick={onEnter}>학급 살펴보기 <ChevronRight /></button>
     <button className="outline-button" onClick={onCreate}>새 선생님 계정 만들기</button>
-    <p className="demo-copy">체험 모드에서는 바로 로그인할 수 있어요.</p>
+    <button className="text-button teacher-demo-button" onClick={onDemo}><Play /> 예시 데이터로 교사 화면 체험</button>
+    <p className="demo-copy">예시 데이터는 체험 버튼을 눌렀을 때만 표시돼요.</p>
   </section></main>;
 }
 
-function TeacherCreate({ onBack, onDone }: { onBack: () => void; onDone: () => void }) {
+function createClassCode() {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  return Array.from({ length: 6 }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join("");
+}
+
+function TeacherCreate({ onBack, onDone }: { onBack: () => void; onDone: (value: TeacherClass) => void }) {
+  const [name, setName] = useState("");
+  const [grade, setGrade] = useState("1학년");
+  const [code, setCode] = useState(() => createClassCode());
+  const copyCode = async () => {
+    try { await navigator.clipboard.writeText(code); } catch { /* clipboard may be unavailable in preview */ }
+  };
   return <main className="form-screen teacher-form"><BackButton onClick={onBack} /><section className="paper-panel narrow-panel">
-    <p className="eyebrow">새로운 왕국 만들기</p><h2>학급을 등록해요</h2><label>학급 이름<input placeholder="예: 햇살초 3학년 2반" /></label>
-    <label>학년<select><option>1학년</option><option>2학년</option><option selected>3학년</option><option>4학년</option><option>5학년</option><option>6학년</option></select></label>
-    <div className="generated-code"><span>자동 생성 학급 코드</span><b>HJ8A25</b><button aria-label="복사"><Copy /></button></div>
-    <button className="ink-button" onClick={onDone}>학급 만들기 <Check /></button>
+    <p className="eyebrow">새로운 왕국 만들기</p><h2>학급을 등록해요</h2>
+    <label>학급 이름<input value={name} onChange={(e) => setName(e.target.value)} placeholder="예: 햇살초 3학년 2반" /></label>
+    <label>학년<select value={grade} onChange={(e) => setGrade(e.target.value)}><option>1학년</option><option>2학년</option><option>3학년</option><option>4학년</option><option>5학년</option><option>6학년</option></select></label>
+    <label>학급 코드<input className="class-code-input" value={code} onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8))} /></label>
+    <div className="code-actions"><button className="outline-button" onClick={() => setCode(createClassCode())}><RotateCcw /> 새 코드 만들기</button><button className="outline-button" onClick={copyCode}><Copy /> 코드 복사</button></div>
+    <p className="demo-copy">원하는 코드로 직접 바꾸거나 새 코드를 만들 수 있어요.</p>
+    <button className="ink-button" disabled={!name.trim() || code.length < 4} onClick={() => onDone({ name: name.trim(), grade, code })}>학급 만들기 <Check /></button>
   </section></main>;
 }
 
@@ -281,20 +327,28 @@ function Records({ onBack }: { onBack: () => void }) {
   </main>;
 }
 
-function TeacherDashboard({ detail, onBack, onDetail, onHome }: { detail: boolean; onBack: () => void; onDetail: () => void; onHome: () => void }) {
-  if (detail) return <main className="teacher-dashboard"><header className="teacher-head"><BackButton onClick={onBack} /><div><span className="demo-badge">체험 모드</span><button className="icon-button" onClick={onHome}><LogOut /><span>나가기</span></button></div></header>
-    <div className="teacher-title"><div className="avatar">漢</div><div><p className="eyebrow">12번 학생</p><h1>달빛책사</h1><span>한자 견습생 · 최근 접속 2일 전</span></div><button className="outline-button">비밀번호 초기화</button></div>
-    <div className="teacher-stats"><Stat label="학습한 한자" value="9 / 50" /><Stat label="전체 진행률" value="18%" /><Stat label="평균 정답률" value="91%" /><Stat label="쓰기 시도" value="평균 2.4회" /></div>
+function TeacherDashboard({ detail, classInfo, students, demo, selectedStudent, onBack, onDetail, onNewClass, onHome }: {
+  detail: boolean; classInfo: TeacherClass | null; students: StudentRow[]; demo: boolean; selectedStudent: StudentRow | null;
+  onBack: () => void; onDetail: (student: StudentRow) => void; onNewClass: () => void; onHome: () => void;
+}) {
+  const activeStudent = selectedStudent ?? students[0];
+  const learnedAverage = students.length ? Math.round(students.reduce((sum, s) => sum + s.learned, 0) / students.length) : 0;
+  const quizAverage = students.length ? Math.round(students.reduce((sum, s) => sum + s.quiz, 0) / students.length) : 0;
+  const reviewCount = students.filter((s) => s.status !== "순조로움").length;
+  if (detail && activeStudent) return <main className="teacher-dashboard"><header className="teacher-head"><BackButton onClick={onBack} /><div>{demo && <span className="demo-badge">예시 데이터</span>}<button className="icon-button" onClick={onHome}><LogOut /><span>나가기</span></button></div></header>
+    <div className="teacher-title"><div className="avatar">漢</div><div><p className="eyebrow">{activeStudent.no}번 학생</p><h1>{activeStudent.id}</h1><span>{activeStudent.learned >= 15 ? "한자 수련생" : "한자 견습생"} · 최근 접속 {activeStudent.last}</span></div><button className="outline-button">비밀번호 초기화</button></div>
+    <div className="teacher-stats"><Stat label="학습한 한자" value={`${activeStudent.learned} / 50`} /><Stat label="전체 진행률" value={`${Math.round(activeStudent.learned / 50 * 100)}%`} /><Stat label="평균 정답률" value={`${activeStudent.quiz}%`} /><Stat label="쓰기 통과율" value={`${activeStudent.writing}%`} /></div>
     <section className="dashboard-panel"><h2>단원별 진행도</h2>{chapters.slice(0, 4).map((c, i) => <div className="chapter-progress" key={c.id}><span>{c.place}</span><div><i style={{ width: i === 0 ? "82%" : i === 1 ? "20%" : "0%" }} /></div><b>{i === 0 ? "9/11" : i === 1 ? "1/8" : "0"}</b></div>)}</section>
     <div className="teacher-two-col"><section className="dashboard-panel"><h2>자주 틀리는 한자</h2><div className="trouble-hanja"><span>三<small>뜻 구별</small></span><span>水<small>쓰기</small></span><span>山<small>음 읽기</small></span></div></section><section className="dashboard-panel"><h2>최근 학습 기록</h2><ul><li>月 퀴즈 완료 <b>100%</b></li><li>日 쓰기 연습 <b>통과</b></li><li>수의 들판 종합 <b>82%</b></li></ul></section></div>
   </main>;
 
-  return <main className="teacher-dashboard"><header className="teacher-head"><div className="teacher-brand"><Castle /><b>한자별곡 관청</b></div><div><span className="demo-badge">체험 모드</span><button className="icon-button" onClick={onHome}><LogOut /><span>나가기</span></button></div></header>
-    <div className="teacher-title"><div><p className="eyebrow">햇살초등학교</p><h1>3학년 2반</h1><span>학급 코드 <b>HJ8A25</b> <button aria-label="복사"><Copy /></button></span></div><button className="ink-button"><UsersRound /> 학생 관리</button></div>
-    <div className="teacher-stats"><Stat label="등록 학생" value="24명" /><Stat label="오늘 학습" value="17명" /><Stat label="평균 진행률" value="31%" /><Stat label="평균 정답률" value="82%" /><Stat label="복습 필요" value="5명" warning /></div>
+  return <main className="teacher-dashboard"><header className="teacher-head"><div className="teacher-brand"><Castle /><b>한자별곡 관청</b></div><div>{demo && <span className="demo-badge">예시 데이터</span>}<button className="icon-button" onClick={onHome}><LogOut /><span>나가기</span></button></div></header>
+    <div className="teacher-title"><div><p className="eyebrow">{classInfo?.grade ?? "학년 미지정"}</p><h1>{classInfo?.name ?? "새 학급"}</h1><span>학급 코드 <b>{classInfo?.code ?? "미생성"}</b> <button aria-label="복사" onClick={() => classInfo && navigator.clipboard?.writeText(classInfo.code)}><Copy /></button></span></div><div className="teacher-title-actions"><button className="outline-button" onClick={onNewClass}><RotateCcw /> 새 학급 만들기</button><button className="ink-button"><UsersRound /> 학생 관리</button></div></div>
+    <div className="teacher-stats"><Stat label="등록 학생" value={`${students.length}명`} /><Stat label="오늘 학습" value={`${students.filter((s) => s.last === "오늘").length}명`} /><Stat label="평균 진행률" value={`${Math.round(learnedAverage / 50 * 100)}%`} /><Stat label="평균 정답률" value={`${quizAverage}%`} /><Stat label="복습 필요" value={`${reviewCount}명`} warning={reviewCount > 0} /></div>
     <section className="dashboard-panel table-panel"><div className="panel-heading"><div><h2>학생 모험 현황</h2><p>학생을 누르면 자세한 기록을 볼 수 있어요.</p></div><button className="outline-button">명단 내려받기</button></div>
+      {students.length === 0 ? <div className="empty-students"><UsersRound /><h3>아직 등록된 학생이 없어요</h3><p>학생에게 학급 코드 <b>{classInfo?.code}</b>를 알려주면 이곳에 등록 현황이 나타나요.</p></div> :
       <div className="student-table"><div className="table-row head"><span>번호 · 모험 아이디</span><span>학습</span><span>현재 단원</span><span>퀴즈</span><span>쓰기</span><span>최근 접속</span><span>상태</span></div>
-      {demoStudents.map((s) => <button className="table-row" key={s.no} onClick={onDetail}><span><b>{s.no}</b> {s.id}</span><span>{s.learned}/50</span><span>{s.chapter}</span><span>{s.quiz}%</span><span>{s.writing}%</span><span>{s.last}</span><span className={`status status-${s.status.replaceAll(" ", "-")}`}>{s.status}</span></button>)}</div>
+      {students.map((s) => <button className="table-row" key={s.no} onClick={() => onDetail(s)}><span><b>{s.no}</b> {s.id}</span><span>{s.learned}/50</span><span>{s.chapter}</span><span>{s.quiz}%</span><span>{s.writing}%</span><span>{s.last}</span><span className={`status status-${s.status.replaceAll(" ", "-")}`}>{s.status}</span></button>)}</div>}
     </section>
   </main>;
 }
