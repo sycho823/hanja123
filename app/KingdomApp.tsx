@@ -83,6 +83,7 @@ export default function KingdomApp() {
   const [chapterId, setChapterId] = useState(1);
   const [charIndex, setCharIndex] = useState(0);
   const [notice, setNotice] = useState("");
+  const [loadingLabel, setLoadingLabel] = useState("");
   const [authMode, setAuthMode] = useState<"student" | "teacher">("student");
   const [studentMode, setStudentMode] = useState<"register" | "login">("login");
   const [mapZoom, setMapZoom] = useState(1);
@@ -98,7 +99,9 @@ export default function KingdomApp() {
     void setPersistence(auth, browserLocalPersistence);
     return onAuthStateChanged(auth, async (next) => {
     setUser(next);
-    if (!next) return;
+    if (!next) { setLoadingLabel(""); return; }
+    setLoadingLabel("저장된 기록을 불러오는 중...");
+    try {
     const isGoogleTeacher = next.providerData.some((provider) => provider.providerId === "google.com");
     if (isGoogleTeacher) {
       const claims = await next.getIdTokenResult();
@@ -120,6 +123,9 @@ export default function KingdomApp() {
         setProgress(snap.data() as Progress);
         setScreen("levels");
       }
+    }
+    } finally {
+      setLoadingLabel("");
     }
     });
   }, []);
@@ -145,15 +151,18 @@ export default function KingdomApp() {
   };
   const studentJoin = async (form: FormData) => {
     if (!auth) { setProgress(emptyProgress); setScreen("map"); return; }
+    setLoadingLabel("새 모험가를 등록하는 중...");
     try {
       if (auth.currentUser) await signOut(auth);
       const credential = await signInAnonymously(auth);
       await tokenFetch("/api/student/join", { method: "POST", body: JSON.stringify({ classCode: form.get("classCode"), nickname: form.get("nickname"), password: form.get("password") }) });
       setUser(credential.user); setProgress(emptyProgress); setScreen("levels");
     } catch (error) { setNotice(error instanceof Error ? error.message : "학생 등록에 실패했습니다."); }
+    finally { setLoadingLabel(""); }
   };
   const studentLogin = async (form: FormData) => {
     if (!auth) { setProgress(emptyProgress); setScreen("map"); return; }
+    setLoadingLabel("저장된 모험을 불러오는 중...");
     try {
       const response = await fetch("/api/student/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ classCode: form.get("classCode"), nickname: form.get("nickname"), password: form.get("password") }) });
       const text = await response.text();
@@ -165,9 +174,11 @@ export default function KingdomApp() {
       if (db) { const snap = await getDoc(doc(db, "studentProgress", credential.user.uid)); if (snap.exists()) setProgress(snap.data() as Progress); }
       setScreen("levels");
     } catch (error) { setNotice(error instanceof Error ? error.message : "학생 로그인에 실패했습니다."); }
+    finally { setLoadingLabel(""); }
   };
   const teacherLogin = async () => {
     if (!auth) { setScreen("teacher"); return; }
+    setLoadingLabel("교사 계정을 확인하는 중...");
     try {
       const currentIsGoogle = auth.currentUser?.providerData.some((provider) => provider.providerId === "google.com");
       const credential = currentIsGoogle ? { user: auth.currentUser! } : await signInWithPopup(auth, new GoogleAuthProvider());
@@ -180,7 +191,9 @@ export default function KingdomApp() {
       const dashboard = await tokenFetch("/api/classes");
       setDashboardClasses(dashboard.classes); if (dashboard.classes[0]) setPreviewClass(dashboard.classes[0]); setScreen("teacher");
     } catch (error) { setNotice(error instanceof Error ? error.message : "교사 로그인에 실패했습니다."); }
+    finally { setLoadingLabel(""); }
   };
+  const loadingOverlay = loadingLabel ? <div className="loading-overlay" role="status" aria-live="polite"><div className="loading-hourglass">⌛</div><b>{loadingLabel}</b><small>잠시만 기다려 주세요</small></div> : null;
   if (screen === "landing") return <main className="landing">
     <div className="hero-copy"><p className="eyebrow">초등 한자 8급 · 50자 모험</p><h1>한자별곡</h1><h2>안개 왕국의 비밀</h2><p>한 글자씩 바르게 써서 검은 안개를 걷고<br/>여덟 왕국을 되찾아 보세요.</p>
       <div className="hero-actions"><button className="gold-button big" onClick={() => {
@@ -189,15 +202,15 @@ export default function KingdomApp() {
         else setScreen("levels");
       }}>{user ? "계속하기" : "모험 시작"}</button><button className="paper-button big" onClick={() => { setProgress(emptyProgress); setScreen("map"); }}>체험하기</button></div>
       {!isFirebaseConfigured && <small className="dev-badge">현재 체험 모드 · 저장/로그인은 Firebase 연결 후 활성화</small>}
-    </div></main>;
+    </div>{loadingOverlay}</main>;
   if (screen === "login") return <main className="auth-screen"><section className="panel auth-card"><button className="back" onClick={() => setScreen("landing")}>← 돌아가기</button><h2>왕국 입장소</h2>
     <div className="tabs"><button className={authMode === "student" ? "active" : ""} onClick={() => setAuthMode("student")}>학생</button><button className={authMode === "teacher" ? "active" : ""} onClick={() => setAuthMode("teacher")}>선생님</button></div>
     <p className="muted">{!isFirebaseConfigured ? "로컬 체험 모드입니다. Firebase 연결 후 기록이 안전하게 저장돼요." : authMode === "student" ? "이메일 없이 익명 학생 계정으로 입장해요. 학급 코드는 학급을 찾는 용도로만 사용됩니다." : "학교에서 허용한 Google 계정으로만 로그인할 수 있어요."}</p>
     {authMode === "student" ? <><div className="student-auth-toggle"><button className={studentMode === "login" ? "active" : ""} onClick={() => { setStudentMode("login"); setNotice(""); }}>다시 온 모험가</button><button className={studentMode === "register" ? "active" : ""} onClick={() => { setStudentMode("register"); setNotice(""); }}>새로운 모험가</button></div>
-    <form action={studentMode === "register" ? studentJoin : studentLogin}><label>학급 코드<input name="classCode" required minLength={4} maxLength={12} autoCapitalize="characters" placeholder="선생님이 알려준 코드"/></label><label>닉네임<input name="nickname" required minLength={2} maxLength={20} autoComplete="username" placeholder="예: 구름봇"/></label><label>비밀번호<input name="password" type="password" required minLength={6} maxLength={72} autoComplete={studentMode === "login" ? "current-password" : "new-password"} placeholder="6자 이상"/></label>{studentMode === "register" && <small className="form-help">같은 학급에서는 이미 사용 중인 닉네임을 만들 수 없어요. 비밀번호는 암호화해 저장합니다.</small>}<button className="gold-button" type="submit">{!isFirebaseConfigured ? "저장 없이 체험 시작" : studentMode === "register" ? "새 모험가 등록" : "저장된 모험 계속하기"}</button></form></>
-    : <button className="google-button" onClick={teacherLogin}><span>G</span> Google 교사 계정으로 로그인</button>}
+    <form action={studentMode === "register" ? studentJoin : studentLogin}><label>학급 코드<input name="classCode" required minLength={4} maxLength={12} autoCapitalize="characters" placeholder="선생님이 알려준 코드"/></label><label>닉네임<input name="nickname" required minLength={2} maxLength={20} autoComplete="username" placeholder="예: 구름봇"/></label><label>비밀번호<input name="password" type="password" required minLength={6} maxLength={72} autoComplete={studentMode === "login" ? "current-password" : "new-password"} placeholder="6자 이상"/></label>{studentMode === "register" && <small className="form-help">같은 학급에서는 이미 사용 중인 닉네임을 만들 수 없어요. 비밀번호는 암호화해 저장합니다.</small>}<button className="gold-button" type="submit" disabled={Boolean(loadingLabel)}>{!isFirebaseConfigured ? "저장 없이 체험 시작" : studentMode === "register" ? "새 모험가 등록" : "저장된 모험 계속하기"}</button></form></>
+    : <button className="google-button" onClick={teacherLogin} disabled={Boolean(loadingLabel)}><span>G</span> Google 교사 계정으로 로그인</button>}
     {authMode === "teacher" && !isFirebaseConfigured && <button className="preview-link" onClick={() => { setNotice(""); setScreen("teacher"); }}>대시보드 미리보기 →</button>}
-    {notice && <p className="error">{notice}</p>}</section></main>;
+    {notice && <p className="error">{notice}</p>}</section>{loadingOverlay}</main>;
   if (screen === "teacher") return <main className="teacher-screen"><header className="topbar"><button onClick={() => setScreen("landing")}>한자별곡</button><span>선생님 관리소</span><button onClick={() => { if (auth && user) signOut(auth); setScreen("landing"); }}>나가기</button></header>
     {!previewClass ? <section className="panel class-create"><p className="eyebrow">학급 첫 설정</p><h2>새 학급 등록</h2><p className="muted">미리보기에서 만든 학급은 새로고침하면 사라져요. 실제 연결 후에는 선생님 계정에 저장됩니다.</p>
       <form onSubmit={async (e) => { e.preventDefault(); const form = new FormData(e.currentTarget); const draft = { name: String(form.get("name")), grade: String(form.get("grade")), code: String(form.get("code")).trim().toUpperCase() }; try { if (isFirebaseConfigured && user) { const created = await tokenFetch("/api/classes", { method: "POST", body: JSON.stringify(draft) }); const next = { ...created, students: [] }; setDashboardClasses([...dashboardClasses, next]); setPreviewClass(next); } else setPreviewClass(draft); } catch (error) { setNotice(error instanceof Error ? error.message : "학급 생성에 실패했습니다."); } }}>
