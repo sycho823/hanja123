@@ -4,7 +4,6 @@ export type Hanja = {
   meaning: string;
   strokes: number;
   hint: string;
-  detailed: boolean;
 };
 
 export type Chapter = {
@@ -70,11 +69,10 @@ const meanings: Record<string, [string, string, number, string]> = {
   寸: ["촌", "마디", 3, "손가락 한 마디만큼의 길이를 뜻해요."],
 };
 
-const detailed = new Set(["一", "二", "三", "日", "月", "火", "水", "木", "山"]);
 const make = (chars: string): Hanja[] =>
   chars.split(" ").map((char) => {
     const [sound, meaning, strokes, hint] = meanings[char];
-    return { char, sound, meaning, strokes, hint, detailed: detailed.has(char) };
+    return { char, sound, meaning, strokes, hint };
   });
 
 export const chapters: Chapter[] = [
@@ -89,16 +87,3 @@ export const chapters: Chapter[] = [
 ];
 
 export const allHanja = chapters.flatMap((chapter) => chapter.hanja);
-
-export const quizFor = (hanja: Hanja) => [
-  {
-    question: `‘${hanja.meaning} ${hanja.sound}’에 알맞은 한자는 무엇일까요?`,
-    choices: [hanja.char, ...allHanja.filter((item) => item.char !== hanja.char).slice(0, 3).map((item) => item.char)],
-    answer: hanja.char,
-  },
-  {
-    question: `${hanja.char}의 음은 무엇일까요?`,
-    choices: [hanja.sound, "산", "문", "왕"].filter((value, index, array) => array.indexOf(value) === index),
-    answer: hanja.sound,
-  },
-];

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import "./map.css";
 
 export const metadata: Metadata = {
   title: "한자별곡 — 안개 왕국의 비밀",

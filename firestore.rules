@@ -2,40 +2,36 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() { return request.auth != null; }
-    function teacherDoc() {
-      return get(/databases/$(database)/documents/teachers/$(request.auth.uid));
-    }
+    function isTeacher() { return signedIn() && request.auth.token.teacher == true; }
     function ownsClass(classId) {
-      return signedIn() && teacherDoc().data.classIds.hasAny([classId]);
+      return isTeacher() &&
+        get(/databases/$(database)/documents/classes/$(classId)).data.teacherUid == request.auth.uid;
     }
-    function isSelf(studentId) {
-      return signedIn() && request.auth.uid == studentId;
-    }
+    function self(uid) { return signedIn() && request.auth.uid == uid; }
 
-    match /teachers/{teacherId} {
-      allow read, write: if signedIn() && request.auth.uid == teacherId;
+    match /teachers/{uid} {
+      allow read: if self(uid) && isTeacher();
+      allow write: if false;
     }
     match /classes/{classId} {
-      allow read, write: if ownsClass(classId);
+      allow read: if isTeacher() && resource.data.teacherUid == request.auth.uid;
+      allow write: if false;
     }
-    match /students/{studentId} {
-      allow read: if isSelf(studentId) || ownsClass(resource.data.classId);
-      allow update: if isSelf(studentId) || ownsClass(resource.data.classId);
-      allow create: if isSelf(studentId);
-      allow delete: if ownsClass(resource.data.classId);
+    match /students/{uid} {
+      allow read: if self(uid) || ownsClass(resource.data.classId);
+      allow write: if false;
     }
-    match /studentProgress/{studentId} {
-      allow read, write: if isSelf(studentId) ||
-        (resource != null && ownsClass(resource.data.classId));
+    match /studentProgress/{uid} {
+      allow read: if self(uid) || ownsClass(resource.data.classId);
+      allow update: if self(uid)
+        && request.resource.data.studentId == request.auth.uid
+        && request.resource.data.classId == resource.data.classId
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['completed', 'currentChapter', 'updatedAt']);
+      allow create, delete: if false;
     }
-    match /{collectionName}/{recordId} {
-      allow read, write: if collectionName in [
-        'hanjaLearningRecords', 'quizAttempts', 'writingAttempts'
-      ] && (
-        (request.resource != null && isSelf(request.resource.data.studentId)) ||
-        (resource != null && isSelf(resource.data.studentId)) ||
-        (resource != null && ownsClass(resource.data.classId))
-      );
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }
