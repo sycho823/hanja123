@@ -20,6 +20,21 @@
   image-rendering: pixelated;
 }
 
+.restored-region {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: url("/kingdom-map-pixel-concept.png") center/cover no-repeat;
+  image-rendering: pixelated;
+  filter: saturate(1.08) brightness(1.04);
+  transition: opacity 1.2s, -webkit-mask-image 1.2s, mask-image 1.2s;
+}
+.restored-region.complete {
+  filter: saturate(1.18) brightness(1.1);
+  animation: restored-glow 2.4s ease-in-out infinite alternate;
+}
+
 .kingdom-fog {
   pointer-events: none;
   position: absolute;
@@ -27,6 +42,7 @@
   background:
     radial-gradient(circle at 38% 47%, transparent 0 8%, rgba(5,14,13,.2) 19%, rgba(3,10,10,.93) 51%),
     repeating-radial-gradient(ellipse at 80% 50%, rgba(31,48,49,.35) 0 8%, rgba(3,10,12,.68) 12% 19%);
+  z-index: 1;
   mix-blend-mode: multiply;
   transition: opacity 1.5s;
 }
@@ -186,6 +202,10 @@
 
 @keyframes quest-pulse {
   50% { transform: scale(1.14); box-shadow: 0 0 0 9px #ffe16a42,0 0 36px #ffd655; }
+}
+@keyframes restored-glow {
+  from { filter: saturate(1.08) brightness(1.04); }
+  to { filter: saturate(1.22) brightness(1.14); }
 }
 @keyframes quest-bob { to { transform: translateY(-7px); } }
 

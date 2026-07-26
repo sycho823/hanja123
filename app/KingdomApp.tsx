@@ -180,8 +180,18 @@ export default function KingdomApp() {
       onPointerUp={() => { dragStart.current = null; }} onPointerCancel={() => { dragStart.current = null; }}
       onWheel={(e) => { const next = Math.min(2.2, Math.max(1, mapZoom - e.deltaY * .001)); setMapZoom(next); if (next === 1) setMapPan({ x: 0, y: 0 }); }}>
       <div className="world-map" style={{ transform: `translate(${mapPan.x}px, ${mapPan.y}px) scale(${mapZoom})`, transformOrigin: `${mapNodes[progress.currentChapter - 1].x}% ${mapNodes[progress.currentChapter - 1].y}%` }}>
-        <img src="/kingdom-map-pixel-concept.png" alt="픽셀 아트 안개 왕국 지도"/>
-        <div className="kingdom-fog" style={{ opacity: Math.max(.08, .88 - progress.currentChapter * .1) }}/>
+        <img src="/kingdom-map-ruined.png" alt="검은 안개에 잠긴 픽셀 아트 왕국 지도"/>
+        <div className="kingdom-fog" style={{ opacity: Math.max(.16, .62 - progress.currentChapter * .055) }}/>
+        {chapters.map((c, index) => {
+          const node = mapNodes[index];
+          const learned = c.hanja.filter((h) => progress.completed.includes(h.char)).length;
+          const ratio = learned / c.hanja.length;
+          if (ratio === 0) return null;
+          const radius = ratio >= 1 ? 18 : 5 + ratio * 13;
+          const mask = `radial-gradient(circle ${radius}vw at ${node.x}% ${node.y}%, #000 0 62%, rgba(0,0,0,.9) 72%, transparent 100%)`;
+          return <div key={`restored-${c.id}`} className={`restored-region ${ratio >= 1 ? "complete" : ""}`}
+            style={{ WebkitMaskImage: mask, maskImage: mask, opacity: .42 + ratio * .58 }} aria-hidden="true"/>;
+        })}
         {chapters.map((c, index) => {
           const node = mapNodes[index]; const locked = c.id > progress.currentChapter;
           const done = c.hanja.every((h) => progress.completed.includes(h.char));
