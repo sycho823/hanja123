@@ -232,7 +232,7 @@
   .node-icon { width: 45px; height: 45px; font-size: 20px; }
   .node-label { padding: 4px 7px; font-size: .72rem; }
   .map-quest { left: 12px; right: 12px; top: 12px; max-width: none; }
-  .map-controls { top: auto; right: 10px; bottom: 12px; }
+  .map-controls { top: 178px; right: 10px; bottom: auto; }
   .map-controls .control-text { padding: 0 7px; }
   .drag-guide { display: none; }
 }

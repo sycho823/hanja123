@@ -89,6 +89,9 @@ export default function KingdomApp() {
   const [previewClass, setPreviewClass] = useState<PreviewClass | null>(null);
   const [dashboardClasses, setDashboardClasses] = useState<DashboardClass[]>([]);
   const dragStart = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null);
+  const mapStageRef = useRef<HTMLElement>(null);
+  const mapPointers = useRef(new Map<number, { x: number; y: number }>());
+  const pinchStart = useRef<{ distance: number; zoom: number } | null>(null);
   useEffect(() => auth ? onAuthStateChanged(auth, async (next) => {
     setUser(next);
     if (next && next.isAnonymous && db) { const snap = await getDoc(doc(db, "studentProgress", next.uid)); if (snap.exists()) { setProgress(snap.data() as Progress); setScreen("map"); } }
@@ -168,17 +171,40 @@ export default function KingdomApp() {
     <WritingBoard key={current.char} char={current.char} onPass={() => complete(current.char)} />
     <nav className="char-list">{chapter.hanja.map((h, i) => <button key={h.char} className={`${i === charIndex ? "selected" : ""} ${progress.completed.includes(h.char) ? "done" : ""}`} onClick={() => setCharIndex(i)}>{h.char}<small>{h.meaning}</small></button>)}</nav>
   </section><footer className="lesson-footer"><button className="paper-button" disabled={charIndex === 0} onClick={() => setCharIndex(charIndex - 1)}>이전 글자</button><button className="gold-button" disabled={!progress.completed.includes(current.char)} onClick={() => charIndex < chapter.hanja.length - 1 ? setCharIndex(charIndex + 1) : setScreen("map")}>{charIndex < chapter.hanja.length - 1 ? "다음 글자" : "지도에서 확인"}</button></footer></main>;
+  const minimumMapZoom = () => {
+    const rect = mapStageRef.current?.getBoundingClientRect();
+    if (typeof window === "undefined" || !rect || window.innerWidth > 700) return 1;
+    return Math.min(rect.width / 1000, rect.height / 563);
+  };
   const focusCurrentNode = () => {
     setMapPan({ x: 0, y: 0 });
     setMapZoom(1.55);
   };
-  const showWholeMap = () => { setMapPan({ x: 0, y: 0 }); setMapZoom(1); };
+  const showWholeMap = () => { setMapPan({ x: 0, y: 0 }); setMapZoom(minimumMapZoom()); };
   return <main className="map-screen"><header className="topbar"><button onClick={() => setScreen("landing")}>한자별곡</button><span>안개 왕국 지도</span><b>{progress.completed.length} / {allHanja.length}자</b></header>
-    <section className="map-stage"
-      onPointerDown={(e) => { if ((e.target as HTMLElement).closest("button")) return; e.currentTarget.setPointerCapture(e.pointerId); dragStart.current = { x: e.clientX, y: e.clientY, panX: mapPan.x, panY: mapPan.y }; }}
-      onPointerMove={(e) => { if (!dragStart.current) return; setMapPan({ x: dragStart.current.panX + e.clientX - dragStart.current.x, y: dragStart.current.panY + e.clientY - dragStart.current.y }); }}
-      onPointerUp={() => { dragStart.current = null; }} onPointerCancel={() => { dragStart.current = null; }}
-      onWheel={(e) => { const next = Math.min(2.2, Math.max(1, mapZoom - e.deltaY * .001)); setMapZoom(next); if (next === 1) setMapPan({ x: 0, y: 0 }); }}>
+    <section ref={mapStageRef} className="map-stage"
+      onPointerDown={(e) => {
+        if ((e.target as HTMLElement).closest("button")) return;
+        e.currentTarget.setPointerCapture(e.pointerId);
+        mapPointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (mapPointers.current.size === 2) {
+          const [a, b] = [...mapPointers.current.values()];
+          pinchStart.current = { distance: Math.hypot(a.x - b.x, a.y - b.y), zoom: mapZoom };
+          dragStart.current = null;
+        } else dragStart.current = { x: e.clientX, y: e.clientY, panX: mapPan.x, panY: mapPan.y };
+      }}
+      onPointerMove={(e) => {
+        if (!mapPointers.current.has(e.pointerId)) return;
+        mapPointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (mapPointers.current.size === 2 && pinchStart.current) {
+          const [a, b] = [...mapPointers.current.values()];
+          const distance = Math.hypot(a.x - b.x, a.y - b.y);
+          setMapZoom(Math.min(2.2, Math.max(minimumMapZoom(), pinchStart.current.zoom * distance / pinchStart.current.distance)));
+        } else if (dragStart.current) setMapPan({ x: dragStart.current.panX + e.clientX - dragStart.current.x, y: dragStart.current.panY + e.clientY - dragStart.current.y });
+      }}
+      onPointerUp={(e) => { mapPointers.current.delete(e.pointerId); dragStart.current = null; pinchStart.current = null; }}
+      onPointerCancel={(e) => { mapPointers.current.delete(e.pointerId); dragStart.current = null; pinchStart.current = null; }}
+      onWheel={(e) => { const min = minimumMapZoom(); const next = Math.min(2.2, Math.max(min, mapZoom - e.deltaY * .001)); setMapZoom(next); if (next === min) setMapPan({ x: 0, y: 0 }); }}>
       <div className="world-map" style={{ transform: `translate(${mapPan.x}px, ${mapPan.y}px) scale(${mapZoom})`, transformOrigin: `${mapNodes[progress.currentChapter - 1].x}% ${mapNodes[progress.currentChapter - 1].y}%` }}>
         <img src="/kingdom-map-ruined.png" alt="검은 안개에 잠긴 픽셀 아트 왕국 지도"/>
         <div className="kingdom-fog" style={{ opacity: Math.max(.16, .62 - progress.currentChapter * .055) }}/>
@@ -207,10 +233,10 @@ export default function KingdomApp() {
       <div className="map-quest"><small>현재 임무</small><b>{chapters[progress.currentChapter - 1].place}</b><span>{chapters[progress.currentChapter - 1].description}</span></div>
       <div className="map-controls" aria-label="지도 확대 축소">
         <button onClick={() => setMapZoom(Math.min(2.2, mapZoom + .2))} aria-label="확대">＋</button>
-        <button onClick={() => { const next = Math.max(1, mapZoom - .2); setMapZoom(next); if (next === 1) setMapPan({x:0,y:0}); }} aria-label="축소">−</button>
+        <button onClick={() => { const min = minimumMapZoom(); const next = Math.max(min, mapZoom - .2); setMapZoom(next); if (next === min) setMapPan({x:0,y:0}); }} aria-label="축소">−</button>
         <button className="control-text" onClick={showWholeMap}>전체</button>
         <button className="control-text" onClick={focusCurrentNode}>현재 거점</button>
       </div>
-      {mapZoom > 1 && <div className="drag-guide">지도를 드래그해서 이동 · 휠로 확대/축소</div>}
+      {mapZoom > minimumMapZoom() && <div className="drag-guide">드래그로 이동 · 두 손가락으로 확대/축소</div>}
     </section><div className="map-bottom"><p>{progress.currentChapter === 8 && progress.completed.length === 50 ? "왕국의 모든 안개가 걷혔어요!" : "불빛이 켜진 장소를 눌러 안개 속으로 들어가세요."}</p><button className="gold-button" onClick={() => openChapter(progress.currentChapter)}>현재 거점 입장</button></div></main>;
 }
