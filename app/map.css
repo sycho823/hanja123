@@ -9,6 +9,7 @@
 .world-map {
   position: absolute;
   inset: 0;
+  overflow: hidden;
   transform-origin: 38% 47%;
   transition: transform 1.4s cubic-bezier(.2,.75,.25,1);
 }
@@ -210,6 +211,23 @@
 @keyframes quest-bob { to { transform: translateY(-7px); } }
 
 @media (max-width: 700px) {
+  .map-stage {
+    height: calc(100svh - 150px);
+    min-height: 560px;
+  }
+  .world-map {
+    inset: auto;
+    left: 50%;
+    top: 50%;
+    width: 1000px;
+    height: 563px;
+    margin-left: -500px;
+    margin-top: -281.5px;
+    transform-origin: 38% 47%;
+  }
+  .world-map > img {
+    object-fit: fill;
+  }
   .map-node { min-width: 82px; }
   .node-icon { width: 45px; height: 45px; font-size: 20px; }
   .node-label { padding: 4px 7px; font-size: .72rem; }
