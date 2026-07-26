@@ -149,6 +149,18 @@
 .google-button span { display:inline-grid; place-items:center; width:25px; height:25px; margin-right:9px; border-radius:50%; background:#4285f4; color:#fff; }
 .student-table { display:grid; border-top:2px solid #9e8358; }
 .student-table>div { display:grid; grid-template-columns:1.4fr .7fr .5fr 1fr; gap:12px; padding:13px 8px; border-bottom:1px solid #c9b58d; align-items:center; }
+.hanja-heading { display:grid; grid-template-columns:96px 1fr; align-items:center; gap:18px; margin:14px 0 20px; }
+.hanja-heading>strong { display:grid; place-items:center; width:96px; height:106px; border:3px solid #8f7041; background:#fff9e7; color:#262018; font-family:"Yu Mincho","Batang",serif; font-size:4.6rem; line-height:1; box-shadow:5px 6px 0 #b89b68; }
+.hanja-heading small { color:#8b7653; font-weight:900; letter-spacing:.12em; }
+.hanja-heading h2 { margin:5px 0 0; font-size:1.9rem; }
+.phase-track { display:flex; align-items:center; justify-content:center; gap:12px; color:#85765f; font-weight:900; }
+.phase-track span { display:flex; align-items:center; gap:7px; padding:8px 13px; border:2px solid #ad9975; background:#e1d3b1; }
+.phase-track span b { display:grid; place-items:center; width:24px; height:24px; border-radius:50%; background:#8b806e; color:#fff; }
+.phase-track span.active { border-color:#315b43; background:#fff3c9; color:#294c39; box-shadow:0 3px 0 #8f7448; }
+.phase-track span.active b { background:#315b43; }
+.phase-track span.done { border-color:#688557; color:#46633a; }
+.phase-track span.done b { background:#688557; }
+.phase-track i { font-style:normal; }
 .teacher-screen { min-height: 100vh; background: #e8d8ad; }
 .class-create { margin: 7vh auto; }
 .class-create form { display: grid; gap: 14px; }

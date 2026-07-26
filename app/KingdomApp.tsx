@@ -23,7 +23,8 @@ function WritingBoard({ char, onPass }: { char: string; onPass: (score: number) 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [strokes, setStrokes] = useState<Point[][]>([]);
   const [active, setActive] = useState<Point[] | null>(null);
-  const [hint, setHint] = useState(0);
+  const [phase, setPhase] = useState<1 | 2>(1);
+  const [showOrder, setShowOrder] = useState(false);
   const [result, setResult] = useState<{ score: number; message: string; passed: boolean } | null>(null);
   const size = 360;
   const paint = (extra?: Point[]) => {
@@ -33,23 +34,28 @@ function WritingBoard({ char, onPass }: { char: string; onPass: (score: number) 
     ctx.clearRect(0, 0, size, size);
     ctx.strokeStyle = "#d6c7a9"; ctx.lineWidth = 1; ctx.setLineDash([8, 8]);
     ctx.beginPath(); ctx.moveTo(size / 2, 0); ctx.lineTo(size / 2, size); ctx.moveTo(0, size / 2); ctx.lineTo(size, size / 2); ctx.stroke(); ctx.setLineDash([]);
-    if (hint > 0) {
+    if (phase === 1) {
       const expected = expectedStrokes(char, size);
-      ctx.strokeStyle = hint === 2 ? "rgba(37,67,51,.24)" : "rgba(37,67,51,.12)"; ctx.lineWidth = 12; ctx.lineCap = "round"; ctx.lineJoin = "round";
+      ctx.strokeStyle = "rgba(64,70,66,.24)"; ctx.lineWidth = 15; ctx.lineCap = "round"; ctx.lineJoin = "round";
       expected.forEach((points, i) => {
-        if (hint === 1) { ctx.fillStyle = "#d1603d"; ctx.beginPath(); ctx.arc(points[0].x, points[0].y, 6, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = "#533c29"; ctx.font = "bold 12px monospace"; ctx.fillText(String(i + 1), points[0].x + 8, points[0].y); return; }
         ctx.beginPath(); points.forEach((p, n) => n ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)); ctx.stroke();
+        if (showOrder) {
+          ctx.fillStyle = "#c9543b"; ctx.beginPath(); ctx.arc(points[0].x, points[0].y, 11, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = "#fff9df"; ctx.font = "bold 13px monospace"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(String(i + 1), points[0].x, points[0].y);
+        }
       });
     }
     ctx.strokeStyle = "#231d18"; ctx.lineWidth = 13; ctx.lineCap = "round"; ctx.lineJoin = "round";
     [...strokes, ...(extra?.length ? [extra] : [])].forEach((points) => { ctx.beginPath(); points.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)); ctx.stroke(); });
   };
   useEffect(() => paint(active ?? undefined));
+  const changePhase = (next: 1 | 2) => { setPhase(next); setStrokes([]); setActive(null); setResult(null); setShowOrder(false); };
   const point = (event: React.PointerEvent<HTMLCanvasElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
     return { x: ((event.clientX - rect.left) / rect.width) * size, y: ((event.clientY - rect.top) / rect.height) * size };
   };
   return <div className="writing-wrap">
+    <div className="phase-track"><span className={phase === 1 ? "active" : "done"}><b>1</b> 따라쓰기</span><i>→</i><span className={phase === 2 ? "active" : ""}><b>2</b> 혼자쓰기</span></div>
     <div className="canvas-frame">
       <canvas ref={canvasRef} width={size} height={size}
         onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); setActive([point(e)]); setResult(null); }}
@@ -59,8 +65,12 @@ function WritingBoard({ char, onPass }: { char: string; onPass: (score: number) 
     <div className="writing-actions">
       <button className="paper-button" onClick={() => { setStrokes(strokes.slice(0, -1)); setResult(null); }}>한 획 되돌리기</button>
       <button className="paper-button" onClick={() => { setStrokes([]); setResult(null); }}>모두 지우기</button>
-      <button className="paper-button" onClick={() => setHint((hint + 1) % 3)}>도움 {hint === 0 ? "보기" : hint === 1 ? "더 보기" : "끄기"}</button>
-      <button className="gold-button" onClick={() => { const judged = judgeWriting(char, strokes, size); setResult(judged); if (judged.passed) onPass(judged.score); }}>글씨 확인</button>
+      {phase === 1 ? <button className="paper-button" onClick={() => setShowOrder(!showOrder)}>{showOrder ? "획순 숨기기" : "도움 보기 · 획순"}</button> : <button className="paper-button" onClick={() => changePhase(1)}>따라쓰기 다시 보기</button>}
+      <button className="gold-button" onClick={() => {
+        const judged = judgeWriting(char, strokes, size);
+        if (judged.passed && phase === 1) { setResult({ ...judged, message: "따라쓰기 통과! 이제 본보기 없이 혼자 써 봐요." }); setTimeout(() => changePhase(2), 700); }
+        else { setResult(judged); if (judged.passed) onPass(judged.score); }
+      }}>{phase === 1 ? "따라쓰기 확인" : "혼자쓰기 확인"}</button>
     </div>
     {result && <div className={`judge ${result.passed ? "pass" : "retry"}`}><strong>{result.score}점</strong> {result.message}</div>}
   </div>;
@@ -154,7 +164,7 @@ export default function KingdomApp() {
     </section>}
   </main>;
   if (screen === "study") return <main className="study-screen"><header className="topbar"><button onClick={() => setScreen("map")}>← 왕국 지도</button><span>{chapter.name}</span><b>{charIndex + 1} / {chapter.hanja.length}</b></header><section className="lesson-grid">
-    <aside className="lesson-scroll"><p className="eyebrow">받아쓰기 임무</p><h2>{current.meaning} {current.sound}</h2><p>{current.hint}</p><div className="target-info"><span>총 {current.strokes}획</span><span>{progress.completed.includes(current.char) ? "✓ 통과" : "미완료"}</span></div><p className="instruction">빈 칸에 획순대로 써 보세요. ‘글씨 확인’은 획 수, 순서, 방향과 전체 모양을 함께 살펴봅니다.</p></aside>
+    <aside className="lesson-scroll"><p className="eyebrow">받아쓰기 임무</p><div className="hanja-heading"><strong>{current.char}</strong><div><small>훈과 음</small><h2>{current.meaning} {current.sound}</h2></div></div><p>{current.hint}</p><div className="target-info"><span>총 {current.strokes}획</span><span>{progress.completed.includes(current.char) ? "✓ 통과" : "미완료"}</span></div><p className="instruction">먼저 회색 본보기를 따라 쓰고, 통과하면 본보기 없이 혼자 써 보세요.</p></aside>
     <WritingBoard key={current.char} char={current.char} onPass={() => complete(current.char)} />
     <nav className="char-list">{chapter.hanja.map((h, i) => <button key={h.char} className={`${i === charIndex ? "selected" : ""} ${progress.completed.includes(h.char) ? "done" : ""}`} onClick={() => setCharIndex(i)}>{h.char}<small>{h.meaning}</small></button>)}</nav>
   </section><footer className="lesson-footer"><button className="paper-button" disabled={charIndex === 0} onClick={() => setCharIndex(charIndex - 1)}>이전 글자</button><button className="gold-button" disabled={!progress.completed.includes(current.char)} onClick={() => charIndex < chapter.hanja.length - 1 ? setCharIndex(charIndex + 1) : setScreen("map")}>{charIndex < chapter.hanja.length - 1 ? "다음 글자" : "지도에서 확인"}</button></footer></main>;
