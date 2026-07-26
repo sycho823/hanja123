@@ -98,7 +98,8 @@ export default function KingdomApp() {
     if (!auth?.currentUser) throw new Error("로그인이 필요합니다.");
     const token = await auth.currentUser.getIdToken();
     const response = await fetch(url, { ...init, headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, ...(init.headers ?? {}) } });
-    const body = await response.json();
+    const text = await response.text();
+    const body = text.startsWith("{") ? JSON.parse(text) : { error: `서버 오류가 발생했습니다. (${response.status})` };
     if (!response.ok) throw new Error(body.error ?? "요청에 실패했습니다.");
     return body;
   };
@@ -116,7 +117,9 @@ export default function KingdomApp() {
       const credential = await signInWithPopup(auth, new GoogleAuthProvider());
       const token = await credential.user.getIdToken();
       const response = await fetch("/api/auth/teacher", { method: "POST", headers: { Authorization: `Bearer ${token}` } });
-      const body = await response.json(); if (!response.ok) throw new Error(body.error);
+      const text = await response.text();
+      const body = text.startsWith("{") ? JSON.parse(text) : { error: `서버 오류가 발생했습니다. (${response.status})` };
+      if (!response.ok) throw new Error(body.error);
       await credential.user.getIdToken(true);
       const dashboard = await tokenFetch("/api/classes");
       setDashboardClasses(dashboard.classes); if (dashboard.classes[0]) setPreviewClass(dashboard.classes[0]); setScreen("teacher");
