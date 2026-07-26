@@ -15,6 +15,7 @@
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
+    "bcryptjs": "^3.0.3",
     "drizzle-orm": "0.45.2",
     "firebase": "^12.16.0",
     "firebase-admin": "^13.6.0",

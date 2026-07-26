@@ -23,7 +23,7 @@ export async function requireUser(request: Request) {
 
 export async function requireTeacher(request: Request) {
   const decoded = await requireUser(request);
-  if (!decoded.teacher) throw new Error("FORBIDDEN");
+  if (!decoded.teacher || !allowedTeacher(decoded.email)) throw new Error("FORBIDDEN");
   return decoded;
 }
 

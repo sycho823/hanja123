@@ -1,4 +1,9 @@
 .map-stage {
+  width: min(100%, calc((100vh - 150px) * 16 / 9));
+  height: auto;
+  min-height: 0;
+  aspect-ratio: 16 / 9;
+  margin: 0 auto;
   background: #07130f;
   isolation: isolate;
   touch-action: none;
@@ -121,25 +126,44 @@
 .map-controls {
   position: absolute;
   z-index: 20;
-  right: 20px;
-  top: 20px;
-  display: flex;
-  gap: 7px;
-  padding: 7px;
-  border: 2px solid #b88b39;
-  background: #101c18e8;
-  box-shadow: 4px 5px 0 #0007;
+  right: 12px;
+  bottom: 12px;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: 6px;
+  border: 1px solid #d2b35c99;
+  border-radius: 18px;
+  background: #101c18a8;
+  box-shadow: 2px 3px 8px #0006;
+  backdrop-filter: blur(3px);
 }
 .map-controls button {
-  min-width: 43px;
-  height: 43px;
-  border: 2px solid #e5c76e;
-  background: #f6e8bd;
+  min-width: 29px;
+  width: 29px;
+  height: 29px;
+  padding: 0;
+  border: 1px solid #e5c76e;
+  border-radius: 50%;
+  background: #f6e8bdd9;
   color: #302719;
-  font-size: 1.35rem;
+  font-size: 1rem;
   font-weight: 900;
 }
-.map-controls .control-text { width: auto; padding: 0 12px; font-size: .78rem; }
+.map-controls input[type="range"] {
+  width: 8px;
+  height: 72px;
+  margin: 2px 0;
+  writing-mode: vertical-lr;
+  direction: rtl;
+  accent-color: #e1b84e;
+}
+.map-controls .control-text {
+  width: 34px;
+  min-width: 34px;
+  border-radius: 10px;
+  font-size: .58rem;
+}
 .drag-guide {
   position: absolute;
   z-index: 15;
@@ -166,6 +190,10 @@
 .google-button span { display:inline-grid; place-items:center; width:25px; height:25px; margin-right:9px; border-radius:50%; background:#4285f4; color:#fff; }
 .student-table { display:grid; border-top:2px solid #9e8358; }
 .student-table>div { display:grid; grid-template-columns:1.4fr .7fr .5fr 1fr; gap:12px; padding:13px 8px; border-bottom:1px solid #c9b58d; align-items:center; }
+.student-auth-toggle { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:14px 0; }
+.student-auth-toggle button { padding:11px 8px; border:2px solid #9b835e; background:#dfd0a9; color:#564832; font-weight:900; }
+.student-auth-toggle button.active { border-color:#315b43; background:#315b43; color:#fff; }
+.form-help { display:block; padding:10px 12px; border-left:4px solid #b18b45; background:#fff5d8; color:#685941; line-height:1.5; }
 .hanja-heading { display:grid; grid-template-columns:96px 1fr; align-items:center; gap:18px; margin:14px 0 20px; }
 .hanja-heading>strong { display:grid; place-items:center; width:96px; height:106px; border:3px solid #8f7041; background:#fff9e7; color:#262018; font-family:"Yu Mincho","Batang",serif; font-size:4.6rem; line-height:1; box-shadow:5px 6px 0 #b89b68; }
 .hanja-heading small { color:#8b7653; font-weight:900; letter-spacing:.12em; }
@@ -179,6 +207,27 @@
 .phase-track span.done b { background:#688557; }
 .phase-track i { font-style:normal; }
 .teacher-screen { min-height: 100vh; background: #e8d8ad; }
+.level-screen { min-height: 100vh; background: radial-gradient(circle at 50% 25%,#365544,#15251e 68%); color:#fff2c9; }
+.level-select { width:min(1050px,100%); margin:0 auto; padding:clamp(34px,7vw,90px) 24px; }
+.level-heading { text-align:center; margin-bottom:36px; }
+.level-heading h2 { margin:8px 0 10px; font:900 clamp(2rem,5vw,3.4rem) Georgia,"Malgun Gothic",serif; }
+.level-heading p:last-child { color:#d7cfb7; }
+.level-cards { display:grid; grid-template-columns:repeat(3,1fr); gap:20px; }
+.level-card { min-height:300px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; border:3px solid #d8b557; background:#f4e4b9; color:#302419; box-shadow:7px 9px 0 #0b1510aa; }
+.level-card small { font-weight:900; letter-spacing:.12em; color:#8d6930; }
+.level-card strong { font:900 5rem Georgia,serif; }
+.level-card span { color:#725f42; }
+.level-card b { margin-top:16px; padding:10px 16px; background:#294b39; color:#fff0b6; }
+.level-card.available:hover { transform:translateY(-5px); box-shadow:7px 14px 0 #0b1510aa; }
+.level-card.locked { filter:grayscale(1); opacity:.55; background:#b7b1a2; }
+.topbar-account { display: flex; align-items: center; gap: 14px; }
+.topbar-account button { padding: 7px 10px; border: 1px solid #d5b65d; }
+@media(max-width:700px){
+  .map-stage { width:100%; height:auto; min-height:0; aspect-ratio:16/9; }
+  .level-cards { grid-template-columns:1fr; }
+  .level-card { min-height:210px; }
+  .level-card strong { font-size:3.7rem; }
+}
 .class-create { margin: 7vh auto; }
 .class-create form { display: grid; gap: 14px; }
 .class-create label { display: grid; gap: 6px; font-weight: 800; }

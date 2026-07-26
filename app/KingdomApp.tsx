@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { GoogleAuthProvider, onAuthStateChanged, signInAnonymously, signInWithPopup, signOut, type User } from "firebase/auth";
+import { browserLocalPersistence, GoogleAuthProvider, onAuthStateChanged, setPersistence, signInAnonymously, signInWithCustomToken, signInWithPopup, signOut, type User } from "firebase/auth";
 import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
 import { auth, db, isFirebaseConfigured } from "@/lib/firebase";
 import { chapters, allHanja } from "@/data/hanja";
 import { expectedStrokes, judgeWriting, type Point } from "@/lib/handwriting";
 
-type Screen = "landing" | "login" | "map" | "study" | "teacher";
+type Screen = "landing" | "login" | "levels" | "map" | "study" | "teacher";
 type Progress = { completed: string[]; currentChapter: number };
 type PreviewClass = { name: string; grade: string | number; code: string };
 type DashboardClass = PreviewClass & { id: string; students: Array<{ uid: string; nickname: string; completed: number; currentChapter: number; updatedAt: string }> };
@@ -84,6 +84,7 @@ export default function KingdomApp() {
   const [charIndex, setCharIndex] = useState(0);
   const [notice, setNotice] = useState("");
   const [authMode, setAuthMode] = useState<"student" | "teacher">("student");
+  const [studentMode, setStudentMode] = useState<"register" | "login">("login");
   const [mapZoom, setMapZoom] = useState(1);
   const [mapPan, setMapPan] = useState({ x: 0, y: 0 });
   const [previewClass, setPreviewClass] = useState<PreviewClass | null>(null);
@@ -92,10 +93,36 @@ export default function KingdomApp() {
   const mapStageRef = useRef<HTMLElement>(null);
   const mapPointers = useRef(new Map<number, { x: number; y: number }>());
   const pinchStart = useRef<{ distance: number; zoom: number } | null>(null);
-  useEffect(() => auth ? onAuthStateChanged(auth, async (next) => {
+  useEffect(() => {
+    if (!auth) return;
+    void setPersistence(auth, browserLocalPersistence);
+    return onAuthStateChanged(auth, async (next) => {
     setUser(next);
-    if (next && next.isAnonymous && db) { const snap = await getDoc(doc(db, "studentProgress", next.uid)); if (snap.exists()) { setProgress(snap.data() as Progress); setScreen("map"); } }
-  }) : undefined, []);
+    if (!next) return;
+    const isGoogleTeacher = next.providerData.some((provider) => provider.providerId === "google.com");
+    if (isGoogleTeacher) {
+      const claims = await next.getIdTokenResult();
+      if (claims.claims.teacher === true) {
+        const token = await next.getIdToken();
+        const response = await fetch("/api/classes", { headers: { Authorization: `Bearer ${token}` } });
+        if (response.ok) {
+          const dashboard = await response.json();
+          setDashboardClasses(dashboard.classes);
+          setPreviewClass(dashboard.classes[0] ?? null);
+          setScreen("teacher");
+        }
+      }
+      return;
+    }
+    if (db) {
+      const snap = await getDoc(doc(db, "studentProgress", next.uid));
+      if (snap.exists()) {
+        setProgress(snap.data() as Progress);
+        setScreen("levels");
+      }
+    }
+    });
+  }, []);
   const save = async (next: Progress) => { setProgress(next); if (user && db) await setDoc(doc(db, "studentProgress", user.uid), { ...next, updatedAt: serverTimestamp() }, { merge: true }); };
   const complete = async (char: string) => {
     if (progress.completed.includes(char)) return;
@@ -119,15 +146,31 @@ export default function KingdomApp() {
   const studentJoin = async (form: FormData) => {
     if (!auth) { setProgress(emptyProgress); setScreen("map"); return; }
     try {
-      const credential = auth.currentUser?.isAnonymous ? { user: auth.currentUser } : await signInAnonymously(auth);
-      await tokenFetch("/api/student/join", { method: "POST", body: JSON.stringify({ classCode: form.get("classCode"), nickname: form.get("nickname") }) });
-      setUser(credential.user); setProgress(emptyProgress); setScreen("map");
-    } catch (error) { setNotice(error instanceof Error ? error.message : "학생 입장에 실패했습니다."); }
+      if (auth.currentUser) await signOut(auth);
+      const credential = await signInAnonymously(auth);
+      await tokenFetch("/api/student/join", { method: "POST", body: JSON.stringify({ classCode: form.get("classCode"), nickname: form.get("nickname"), password: form.get("password") }) });
+      setUser(credential.user); setProgress(emptyProgress); setScreen("levels");
+    } catch (error) { setNotice(error instanceof Error ? error.message : "학생 등록에 실패했습니다."); }
+  };
+  const studentLogin = async (form: FormData) => {
+    if (!auth) { setProgress(emptyProgress); setScreen("map"); return; }
+    try {
+      const response = await fetch("/api/student/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ classCode: form.get("classCode"), nickname: form.get("nickname"), password: form.get("password") }) });
+      const text = await response.text();
+      const body = text.startsWith("{") ? JSON.parse(text) : { error: `서버 오류가 발생했습니다. (${response.status})` };
+      if (!response.ok) throw new Error(body.error);
+      if (auth.currentUser) await signOut(auth);
+      const credential = await signInWithCustomToken(auth, body.token);
+      setUser(credential.user);
+      if (db) { const snap = await getDoc(doc(db, "studentProgress", credential.user.uid)); if (snap.exists()) setProgress(snap.data() as Progress); }
+      setScreen("levels");
+    } catch (error) { setNotice(error instanceof Error ? error.message : "학생 로그인에 실패했습니다."); }
   };
   const teacherLogin = async () => {
     if (!auth) { setScreen("teacher"); return; }
     try {
-      const credential = await signInWithPopup(auth, new GoogleAuthProvider());
+      const currentIsGoogle = auth.currentUser?.providerData.some((provider) => provider.providerId === "google.com");
+      const credential = currentIsGoogle ? { user: auth.currentUser! } : await signInWithPopup(auth, new GoogleAuthProvider());
       const token = await credential.user.getIdToken();
       const response = await fetch("/api/auth/teacher", { method: "POST", headers: { Authorization: `Bearer ${token}` } });
       const text = await response.text();
@@ -140,13 +183,18 @@ export default function KingdomApp() {
   };
   if (screen === "landing") return <main className="landing">
     <div className="hero-copy"><p className="eyebrow">초등 한자 8급 · 50자 모험</p><h1>한자별곡</h1><h2>안개 왕국의 비밀</h2><p>한 글자씩 바르게 써서 검은 안개를 걷고<br/>여덟 왕국을 되찾아 보세요.</p>
-      <div className="hero-actions"><button className="gold-button big" onClick={() => setScreen("login")}>모험 시작</button><button className="paper-button big" onClick={() => { setProgress(emptyProgress); setScreen("map"); }}>체험하기</button></div>
+      <div className="hero-actions"><button className="gold-button big" onClick={() => {
+        if (!user) setScreen("login");
+        else if (user.providerData.some((provider) => provider.providerId === "google.com")) setScreen("teacher");
+        else setScreen("levels");
+      }}>{user ? "계속하기" : "모험 시작"}</button><button className="paper-button big" onClick={() => { setProgress(emptyProgress); setScreen("map"); }}>체험하기</button></div>
       {!isFirebaseConfigured && <small className="dev-badge">현재 체험 모드 · 저장/로그인은 Firebase 연결 후 활성화</small>}
     </div></main>;
   if (screen === "login") return <main className="auth-screen"><section className="panel auth-card"><button className="back" onClick={() => setScreen("landing")}>← 돌아가기</button><h2>왕국 입장소</h2>
     <div className="tabs"><button className={authMode === "student" ? "active" : ""} onClick={() => setAuthMode("student")}>학생</button><button className={authMode === "teacher" ? "active" : ""} onClick={() => setAuthMode("teacher")}>선생님</button></div>
     <p className="muted">{!isFirebaseConfigured ? "로컬 체험 모드입니다. Firebase 연결 후 기록이 안전하게 저장돼요." : authMode === "student" ? "이메일 없이 익명 학생 계정으로 입장해요. 학급 코드는 학급을 찾는 용도로만 사용됩니다." : "학교에서 허용한 Google 계정으로만 로그인할 수 있어요."}</p>
-    {authMode === "student" ? <form action={studentJoin}><label>학생 이름<input name="nickname" required maxLength={20} placeholder="예: 김하늘"/></label><label>학급 코드<input name="classCode" required minLength={4} maxLength={12} placeholder="선생님이 알려준 코드"/></label><button className="gold-button" type="submit">{isFirebaseConfigured ? "익명 계정으로 모험 시작" : "저장 없이 체험 시작"}</button></form>
+    {authMode === "student" ? <><div className="student-auth-toggle"><button className={studentMode === "login" ? "active" : ""} onClick={() => { setStudentMode("login"); setNotice(""); }}>다시 온 모험가</button><button className={studentMode === "register" ? "active" : ""} onClick={() => { setStudentMode("register"); setNotice(""); }}>새로운 모험가</button></div>
+    <form action={studentMode === "register" ? studentJoin : studentLogin}><label>학급 코드<input name="classCode" required minLength={4} maxLength={12} autoCapitalize="characters" placeholder="선생님이 알려준 코드"/></label><label>닉네임<input name="nickname" required minLength={2} maxLength={20} autoComplete="username" placeholder="예: 구름봇"/></label><label>비밀번호<input name="password" type="password" required minLength={6} maxLength={72} autoComplete={studentMode === "login" ? "current-password" : "new-password"} placeholder="6자 이상"/></label>{studentMode === "register" && <small className="form-help">같은 학급에서는 이미 사용 중인 닉네임을 만들 수 없어요. 비밀번호는 암호화해 저장합니다.</small>}<button className="gold-button" type="submit">{!isFirebaseConfigured ? "저장 없이 체험 시작" : studentMode === "register" ? "새 모험가 등록" : "저장된 모험 계속하기"}</button></form></>
     : <button className="google-button" onClick={teacherLogin}><span>G</span> Google 교사 계정으로 로그인</button>}
     {authMode === "teacher" && !isFirebaseConfigured && <button className="preview-link" onClick={() => { setNotice(""); setScreen("teacher"); }}>대시보드 미리보기 →</button>}
     {notice && <p className="error">{notice}</p>}</section></main>;
@@ -166,22 +214,43 @@ export default function KingdomApp() {
       </div>
     </section>}
   </main>;
+  if (screen === "levels") return <main className="level-screen">
+    <header className="topbar"><button onClick={() => setScreen("landing")}>한자별곡</button><span>한자 학습</span><button onClick={async () => { if (auth) await signOut(auth); setUser(null); setProgress(emptyProgress); setScreen("landing"); }}>로그아웃</button></header>
+    <section className="level-select">
+      <div className="level-heading"><p className="eyebrow">배울 급수를 골라요</p><h2>한자 왕국으로 떠나볼까요?</h2><p>8급 왕국부터 차근차근 완성하면 다음 왕국이 열립니다.</p></div>
+      <div className="level-cards">
+        <button className="level-card available" onClick={() => { setMapPan({ x: 0, y: 0 }); setMapZoom(1); setScreen("map"); }}><small>첫 번째 왕국</small><strong>8급</strong><span>50자 · 입장 가능</span><b>왕국 입장 →</b></button>
+        <button className="level-card locked" disabled><small>두 번째 왕국</small><strong>7급</strong><span>150자</span><b>🔒 준비 중</b></button>
+        <button className="level-card locked" disabled><small>세 번째 왕국</small><strong>6급</strong><span>150자</span><b>🔒 준비 중</b></button>
+      </div>
+    </section>
+  </main>;
   if (screen === "study") return <main className="study-screen"><header className="topbar"><button onClick={() => setScreen("map")}>← 왕국 지도</button><span>{chapter.name}</span><b>{charIndex + 1} / {chapter.hanja.length}</b></header><section className="lesson-grid">
     <aside className="lesson-scroll"><p className="eyebrow">받아쓰기 임무</p><div className="hanja-heading"><strong>{current.char}</strong><div><small>훈과 음</small><h2>{current.meaning} {current.sound}</h2></div></div><p>{current.hint}</p><div className="target-info"><span>총 {current.strokes}획</span><span>{progress.completed.includes(current.char) ? "✓ 통과" : "미완료"}</span></div><p className="instruction">먼저 회색 본보기를 따라 쓰고, 통과하면 본보기 없이 혼자 써 보세요.</p></aside>
     <WritingBoard key={current.char} char={current.char} onPass={() => complete(current.char)} />
     <nav className="char-list">{chapter.hanja.map((h, i) => <button key={h.char} className={`${i === charIndex ? "selected" : ""} ${progress.completed.includes(h.char) ? "done" : ""}`} onClick={() => setCharIndex(i)}>{h.char}<small>{h.meaning}</small></button>)}</nav>
   </section><footer className="lesson-footer"><button className="paper-button" disabled={charIndex === 0} onClick={() => setCharIndex(charIndex - 1)}>이전 글자</button><button className="gold-button" disabled={!progress.completed.includes(current.char)} onClick={() => charIndex < chapter.hanja.length - 1 ? setCharIndex(charIndex + 1) : setScreen("map")}>{charIndex < chapter.hanja.length - 1 ? "다음 글자" : "지도에서 확인"}</button></footer></main>;
-  const minimumMapZoom = () => {
+  const minimumMapZoom = () => 1;
+  const clampMapPan = (pan: { x: number; y: number }, zoom: number) => {
     const rect = mapStageRef.current?.getBoundingClientRect();
-    if (typeof window === "undefined" || !rect || window.innerWidth > 700) return 1;
-    return Math.min(rect.width / 1000, rect.height / 563);
+    if (!rect || zoom <= 1) return { x: 0, y: 0 };
+    const origin = mapNodes[progress.currentChapter - 1];
+    const minX = -(zoom - 1) * rect.width * (origin.x / 100);
+    const maxX = (zoom - 1) * rect.width * (1 - origin.x / 100);
+    const minY = -(zoom - 1) * rect.height * (origin.y / 100);
+    const maxY = (zoom - 1) * rect.height * (1 - origin.y / 100);
+    return {
+      x: Math.min(maxX, Math.max(minX, pan.x)),
+      y: Math.min(maxY, Math.max(minY, pan.y)),
+    };
   };
-  const focusCurrentNode = () => {
-    setMapPan({ x: 0, y: 0 });
-    setMapZoom(1.55);
+  const changeMapZoom = (zoom: number) => {
+    const next = Math.min(2.2, Math.max(minimumMapZoom(), zoom));
+    setMapZoom(next);
+    setMapPan((pan) => clampMapPan(pan, next));
   };
-  const showWholeMap = () => { setMapPan({ x: 0, y: 0 }); setMapZoom(minimumMapZoom()); };
-  return <main className="map-screen"><header className="topbar"><button onClick={() => setScreen("landing")}>한자별곡</button><span>안개 왕국 지도</span><b>{progress.completed.length} / {allHanja.length}자</b></header>
+  const showWholeMap = () => { setMapPan({ x: 0, y: 0 }); setMapZoom(1); };
+  return <main className="map-screen"><header className="topbar"><button onClick={() => setScreen("levels")}>← 급수 선택</button><span>8급 안개 왕국</span><div className="topbar-account"><b>{progress.completed.length} / {allHanja.length}자</b><button onClick={async () => { if (auth) await signOut(auth); setUser(null); setProgress(emptyProgress); setScreen("landing"); }}>로그아웃</button></div></header>
     <section ref={mapStageRef} className="map-stage"
       onPointerDown={(e) => {
         if ((e.target as HTMLElement).closest("button")) return;
@@ -199,12 +268,12 @@ export default function KingdomApp() {
         if (mapPointers.current.size === 2 && pinchStart.current) {
           const [a, b] = [...mapPointers.current.values()];
           const distance = Math.hypot(a.x - b.x, a.y - b.y);
-          setMapZoom(Math.min(2.2, Math.max(minimumMapZoom(), pinchStart.current.zoom * distance / pinchStart.current.distance)));
-        } else if (dragStart.current) setMapPan({ x: dragStart.current.panX + e.clientX - dragStart.current.x, y: dragStart.current.panY + e.clientY - dragStart.current.y });
+          changeMapZoom(pinchStart.current.zoom * distance / pinchStart.current.distance);
+        } else if (dragStart.current) setMapPan(clampMapPan({ x: dragStart.current.panX + e.clientX - dragStart.current.x, y: dragStart.current.panY + e.clientY - dragStart.current.y }, mapZoom));
       }}
       onPointerUp={(e) => { mapPointers.current.delete(e.pointerId); dragStart.current = null; pinchStart.current = null; }}
       onPointerCancel={(e) => { mapPointers.current.delete(e.pointerId); dragStart.current = null; pinchStart.current = null; }}
-      onWheel={(e) => { const min = minimumMapZoom(); const next = Math.min(2.2, Math.max(min, mapZoom - e.deltaY * .001)); setMapZoom(next); if (next === min) setMapPan({ x: 0, y: 0 }); }}>
+      onWheel={(e) => changeMapZoom(mapZoom - e.deltaY * .001)}>
       <div className="world-map" style={{ transform: `translate(${mapPan.x}px, ${mapPan.y}px) scale(${mapZoom})`, transformOrigin: `${mapNodes[progress.currentChapter - 1].x}% ${mapNodes[progress.currentChapter - 1].y}%` }}>
         <img src="/kingdom-map-ruined.png" alt="검은 안개에 잠긴 픽셀 아트 왕국 지도"/>
         <div className="kingdom-fog" style={{ opacity: Math.max(.16, .62 - progress.currentChapter * .055) }}/>
@@ -232,11 +301,11 @@ export default function KingdomApp() {
       </div>
       <div className="map-quest"><small>현재 임무</small><b>{chapters[progress.currentChapter - 1].place}</b><span>{chapters[progress.currentChapter - 1].description}</span></div>
       <div className="map-controls" aria-label="지도 확대 축소">
-        <button onClick={() => setMapZoom(Math.min(2.2, mapZoom + .2))} aria-label="확대">＋</button>
-        <button onClick={() => { const min = minimumMapZoom(); const next = Math.max(min, mapZoom - .2); setMapZoom(next); if (next === min) setMapPan({x:0,y:0}); }} aria-label="축소">−</button>
+        <button onClick={() => changeMapZoom(mapZoom + .2)} aria-label="확대">＋</button>
+        <input aria-label="지도 확대 비율" type="range" min="1" max="2.2" step=".05" value={mapZoom} onChange={(e) => changeMapZoom(Number(e.target.value))}/>
+        <button onClick={() => changeMapZoom(mapZoom - .2)} aria-label="축소">−</button>
         <button className="control-text" onClick={showWholeMap}>전체</button>
-        <button className="control-text" onClick={focusCurrentNode}>현재 거점</button>
       </div>
-      {mapZoom > minimumMapZoom() && <div className="drag-guide">드래그로 이동 · 두 손가락으로 확대/축소</div>}
+      {mapZoom !== 1 && <div className="drag-guide">드래그로 이동 · 두 손가락으로 확대/축소</div>}
     </section><div className="map-bottom"><p>{progress.currentChapter === 8 && progress.completed.length === 50 ? "왕국의 모든 안개가 걷혔어요!" : "불빛이 켜진 장소를 눌러 안개 속으로 들어가세요."}</p><button className="gold-button" onClick={() => openChapter(progress.currentChapter)}>현재 거점 입장</button></div></main>;
 }
